@@ -1,0 +1,73 @@
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.1
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports: ["2181:2181"]
+
+  broker:
+    image: confluentinc/cp-kafka:7.6.1
+    mem_limit: 2g
+    depends_on: [zookeeper]
+    ports:
+      - "9092:9092"    # internal client access
+      - "29092:29092"  # host access
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+  schema-registry:
+    image: confluentinc/cp-schema-registry:7.6.1
+    depends_on: [broker]
+    ports: ["8081:8081"]
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: broker:9092
+
+  connect:
+    image: confluentinc/cp-kafka-connect:7.6.1
+    mem_limit: 2g
+    depends_on: [broker, schema-registry]
+    ports: ["8083:8083"]
+    environment:
+      CONNECT_BOOTSTRAP_SERVERS: kafka:9092
+      CONNECT_REST_ADVERTISED_HOST_NAME: connect
+      CONNECT_GROUP_ID: connect-group
+      CONNECT_CONFIG_STORAGE_TOPIC: connect-configs
+      CONNECT_OFFSET_STORAGE_TOPIC: connect-offsets
+      CONNECT_STATUS_STORAGE_TOPIC: connect-status
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
+      # For beginner demos we’ll use String, but you can switch to Avro/Protobuf easily.
+      CONNECT_KEY_CONVERTER: org.apache.kafka.connect.storage.StringConverter
+      CONNECT_VALUE_CONVERTER: org.apache.kafka.connect.storage.StringConverter
+      CONNECT_PLUGIN_PATH: /usr/share/java,/usr/share/confluent-hub-components
+    # Install JDBC & Debezium connectors, then start Connect
+    command:
+      - bash
+      - -c
+      - |
+        confluent-hub install --no-prompt confluentinc/kafka-connect-jdbc:10.7.6
+        confluent-hub install --no-prompt debezium/debezium-connector-postgresql:2.6.1
+        /etc/confluent/docker/run
+
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: bank
+      POSTGRES_PASSWORD: bankpw
+      POSTGRES_DB: bankdb
+    ports: ["5432:5432"]
+
+  kcat:
+    image: edenhill/kcat:1.7.1
+    platform: linux/amd64 
+    depends_on: [broker]
+    entrypoint: ["sh","-c","sleep infinity"]
+    #command: ["kcat", "-b", "broker:9092", "-L"]
