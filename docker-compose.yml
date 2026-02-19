@@ -35,7 +35,7 @@ services:
     depends_on: [broker, schema-registry]
     ports: ["8083:8083"]
     environment:
-      CONNECT_BOOTSTRAP_SERVERS: kafka:9092
+      CONNECT_BOOTSTRAP_SERVERS: broker:9092
       CONNECT_REST_ADVERTISED_HOST_NAME: connect
       CONNECT_GROUP_ID: connect-group
       CONNECT_CONFIG_STORAGE_TOPIC: connect-configs
@@ -69,5 +69,5 @@ services:
     image: edenhill/kcat:1.7.1
     platform: linux/amd64 
     depends_on: [broker]
-    entrypoint: ["sh","-c","sleep infinity"]
+    entrypoint: ["sh","-c","tail -f /dev/null"]
     #command: ["kcat", "-b", "broker:9092", "-L"]
